@@ -87,6 +87,13 @@ type VersionMsgResp {
 	BuildDate string `json:"build_date"`
 }
 
+type AutoUpdateUpdateReq {
+	Enabled        bool     `json:"enabled,optional"`
+	DeleteOldImage bool     `json:"deleteOldImage,optional"`
+	ProtectSelf    bool     `json:"protectSelf,optional"`
+	ExcludeList    []string `json:"excludeList,optional"`
+}
+
 type VersionReq {
 	Type string `form:"type"`
 }
@@ -179,6 +186,31 @@ service dockerCopilot {
 
 	@handler updateProgram
 		put /program returns (Resp)
+}
+
+@server(
+	prefix: /api
+	group: autoupdate
+	jwt: Auth
+)
+service dockerCopilot {
+	@handler getSetting
+	get /autoUpdate returns (Resp)
+
+	@handler updateSetting
+	put /autoUpdate (AutoUpdateUpdateReq) returns (Resp)
+
+	@handler run
+	post /autoUpdate/run returns (Resp)
+
+	@handler candidates
+	get /autoUpdate/candidates returns (Resp)
+
+	@handler checkUpdate
+	post /checkUpdate returns (Resp)
+
+	@handler checkUpdateStatus
+	get /checkUpdate/status returns (Resp)
 }
 
 @server(

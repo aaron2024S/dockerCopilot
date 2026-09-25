@@ -30,3 +30,19 @@ __pycache__/
 /db.sqlite3
 /front/
 /logs/
+
+# 前端工程（frontend/）的依赖
+# 注意 /front/ 是 `npm run build` 的产出目录，已在上面忽略；
+# 它通过 //go:embed front/* 打进二进制，无需提交。
+/frontend/node_modules/
+/frontend/dist/
+
+# 交叉编译产物（CI 与离线构建都生成它，Dockerfile 从这里取二进制）
+/dc-back/
+
+# 离线镜像构建（offline/）：脚本要提交，产物与缓存不用
+# 基础镜像层缓存约 15 MB，镜像 tar 每个约 30 MB，都可重新生成
+/offline/cache/
+/offline/staging-*/
+/offline/app-layer-*.tar
+/offline/*-image.tar

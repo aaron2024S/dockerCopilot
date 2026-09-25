@@ -1,0 +1,13 @@
+# 行尾策略（统一下来，避免 autocrlf 把 CRLF 带进镜像）
+#
+# 背景：CI 在 ubuntu-latest 上构建，且 docker/Dockerfile 用 CMD ["./start.sh"] 直接执行
+# start.sh。文件一旦带上 CRLF，容器内会报 `bad interpreter: /bin/sh^M` 启动失败。
+# 而本机 Git for Windows 默认 core.autocrlf=true，检出时会把工作区文件写成 CRLF，
+# 正好会踩这个坑，所以在这里显式锁定。
+* text=auto eol=lf
+*.sh text eol=lf
+
+# Windows 专用脚本保持 CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf

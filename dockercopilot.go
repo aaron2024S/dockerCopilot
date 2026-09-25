@@ -12,6 +12,7 @@ import (
 
 	"github.com/onlyLTY/dockerCopilot/internal/config"
 	"github.com/onlyLTY/dockerCopilot/internal/handler"
+	"github.com/onlyLTY/dockerCopilot/internal/module"
 	"github.com/onlyLTY/dockerCopilot/internal/svc"
 	"github.com/onlyLTY/dockerCopilot/internal/utiles"
 	"github.com/robfig/cron/v3"
@@ -63,6 +64,11 @@ func main() {
 	defer server.Stop()
 	ctx := svc.NewServiceContext(c)
 
+	// 装配自动更新调度器。
+	// 在 main 里注入而不是写进 svc 包：utiles 依赖 svc，反向引用会形成循环依赖。
+	autoUpdateRunner := utiles.NewAutoUpdateRunner(ctx)
+	ctx.AutoUpdateRunner = autoUpdateRunner
+
 	// Ensure data directory and config exist (Auto-init)
 	dataDir := "/data/config/image"
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
@@ -80,25 +86,40 @@ export const customImageLogos = {
 		}
 	}
 
-	list, err := utiles.GetImagesList(ctx)
-	if err != nil {
-		logx.Errorf("panic获取镜像列表出错: %v", err)
-		panic(err)
+	// 启动时先跑一次检测。原来的写法在出错时直接 panic，
+	// 会让整个服务起不来 —— 开局一次网络抖动不该导致进程退出。
+	if list, err := utiles.GetImagesList(ctx); err != nil {
+		logx.Errorf("启动时获取镜像列表出错: %v", err)
+	} else {
+		go ctx.HubImageInfo.CheckUpdate(list)
 	}
-	go ctx.HubImageInfo.CheckUpdate(list)
 	corndanmu := cron.New(cron.WithParser(cron.NewParser(
 		cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow,
 	)))
+	// 每小时 :30 检测镜像更新，检测完紧接着跑一轮自动更新 —— 两者合并成同一趟任务，
+	// 不再错开时间：刚检测出的 digest 就是最新鲜的，更新没必要再等下一个定时点。
+	// 检测结论同时落内存，供容器列表标记"有更新"；是否真正动容器由配置里的开关决定，
+	// 开关关闭时 Run 会立刻返回，检测本身照常进行。
+	//
+	// 若 :30 恰逢用户手动点了检测，CheckUpdate 会等那一轮跑完（最多 CheckRunWaitTimeout），
+	// 拿到的是同一份新鲜结论 —— 不会叠加出并发的重复检测。
 	_, err = corndanmu.AddFunc("30 * * * *", func() {
+		defer recoverCronJob("镜像更新检测与自动更新")
 		list, err := utiles.GetImagesList(ctx)
 		if err != nil {
-			logx.Errorf("panic获取镜像列表出错: %v", err)
-			panic(err)
+			logx.Errorf("定时获取镜像列表出错: %v", err)
+			return
 		}
-		ctx.HubImageInfo.CheckUpdate(list)
+		// 等既有检测等到超时：这一趟的意义就是"拿刚检测出的结论去更新"，
+		// 没有新鲜结论就不该动容器，直接放弃本轮，下一个整点再说。
+		if !ctx.HubImageInfo.CheckUpdate(list) {
+			logx.Error("跳过本轮自动更新：未能取得新鲜的检测结论")
+			return
+		}
+		autoUpdateRunner.Run(module.TriggerCron)
 	})
 	if err != nil {
-		logx.Errorf("panic添加定时任务出错: %v", err)
+		logx.Errorf("添加镜像更新检测定时任务出错: %v", err)
 		panic(err)
 	}
 	corndanmu.Start()
@@ -179,6 +200,15 @@ func RegisterHandlers(engine *rest.Server) {
 			},
 		},
 	)
+}
+
+// recoverCronJob 兜住定时任务里的 panic。
+// robfig/cron 的任务跑在独立 goroutine 中，未捕获的 panic 会直接结束整个进程，
+// 对一个常驻的容器管理服务来说代价太大。
+func recoverCronJob(jobName string) {
+	if r := recover(); r != nil {
+		logx.Errorf("%s 定时任务发生 panic 已恢复: %v", jobName, r)
+	}
 }
 
 // 检查并创建日志目录

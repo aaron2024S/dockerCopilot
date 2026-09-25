@@ -10,12 +10,8 @@ jobs:
   build-frontend:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout frontend code
+      - name: Checkout repository
         uses: actions/checkout@v3
-        with:
-          repository: dongshull/Docker-Copilot-React
-          path: './frontend'
-          ref: 'master'
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -36,7 +32,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: my-artifact-front-dist
-          path: frontend/dist
+          path: front
 
   build-backend:
     needs: [ build-frontend ]

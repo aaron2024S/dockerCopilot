@@ -1,0 +1,38 @@
+# dockerCopilot —— 离线部署专用 compose
+#
+# 用法（本文件与镜像 tar 放同一目录）：
+#   docker load -i dockercopilot-v2.1.3-amd64-image.tar
+#   docker compose -f docker-compose.offline.yml up -d
+#
+# 与仓库 README 里的 compose 相比只有一处差别：**image 指向本地导入的镜像**
+# （dockercopilot:latest），因此目标机无需源码、无需 Docker Hub、无需外网。
+#
+# 升级：新版本 tar 重新 docker load 后，`up -d` 会自动重建容器，
+#       ./data 卷不受影响。
+#
+# 想把镜像名换成上游的 0nlylty/dockercopilot:latest（好让原有 compose 直接复用）：
+#   docker tag dockercopilot:latest 0nlylty/dockercopilot:latest
+
+services:
+  dockercopilot:
+    image: dockercopilot:latest        # docker load 后即存在的本地镜像
+    container_name: dockercopilot
+    restart: always
+    # 沿用上游官方 compose 的配置（管理容器网络、读写 docker.sock 的兼容性最好）。
+    # 若不需要额外的宿主能力，可删掉这行，仅保留下面的 docker.sock 挂载即可。
+    privileged: true
+    network_mode: bridge
+    ports:
+      - 12712:12712
+    volumes:
+      # 必备：本工具通过宿主机的 docker.sock 管理容器
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 持久化：备份、镜像 logo 配置、自动更新配置（/data/config/autoUpdate.json）
+      - ./data:/data
+    environment:
+      - TZ=Asia/Shanghai
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      # 登录密码：不少于八位且非纯数字
+      - secretKey=请替换成你自己的密码
+      # 备份目录（镜像内已设为该默认值，这里显式写出来便于调整）
+      - BACKUP_DIR=/data/backups

@@ -3,6 +3,17 @@
 
 package types
 
+// AutoUpdateUpdateReq 修改自动更新配置。
+// 字段刻意用普通类型而非指针，保证 goctl 依据 dockercopilot.api 重新生成时能产出同样的代码。
+// 排除列表用 nil 判断"请求里没带这个字段"：nil 保持原值，空数组表示用户主动清空，
+// 避免前端只切开关却把排除列表误清掉。
+type AutoUpdateUpdateReq struct {
+	Enabled        bool     `json:"enabled,optional"`
+	DeleteOldImage bool     `json:"deleteOldImage,optional"`
+	ProtectSelf    bool     `json:"protectSelf,optional"`
+	ExcludeList    []string `json:"excludeList,optional"`
+}
+
 type ContainerRenameReq struct {
 	IdReq
 	NewName string `form:"newName"`

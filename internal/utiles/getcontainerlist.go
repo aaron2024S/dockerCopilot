@@ -2,6 +2,8 @@ package utiles
 
 import (
 	"context"
+	"strings"
+
 	"github.com/docker/docker/api/types/container"
 	"github.com/onlyLTY/dockerCopilot/internal/svc"
 	MyType "github.com/onlyLTY/dockerCopilot/internal/types"
@@ -29,11 +31,26 @@ func GetContainerList(ctx *svc.ServiceContext) ([]MyType.Container, error) {
 
 func CheckImageUpdate(ctx *svc.ServiceContext, containerListData []MyType.Container) []MyType.Container {
 	for i, v := range containerListData {
-		if _, ok := ctx.HubImageInfo.Data[v.ImageID]; ok {
-			if ctx.HubImageInfo.Data[v.ImageID].NeedUpdate {
-				containerListData[i].Update = true
-			}
+		if ctx.HubImageInfo.NeedUpdate(v.ImageID) {
+			containerListData[i].Update = true
 		}
 	}
 	return containerListData
+}
+
+// ContainerName 取容器的可读名称。
+// Docker API 返回的名字带前导斜杠（/nginx），对外展示和匹配都要去掉。
+func ContainerName(container MyType.Container) string {
+	if len(container.Names) == 0 {
+		return ""
+	}
+	return strings.TrimPrefix(container.Names[0], "/")
+}
+
+// ContainerImage 取容器使用的镜像名，取不到时退回镜像 ID。
+func ContainerImage(container MyType.Container) string {
+	if container.Image != "" {
+		return container.Image
+	}
+	return container.ImageID
 }

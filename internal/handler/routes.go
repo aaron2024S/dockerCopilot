@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	auth "github.com/onlyLTY/dockerCopilot/internal/handler/auth"
+	autoupdate "github.com/onlyLTY/dockerCopilot/internal/handler/autoupdate"
 	container "github.com/onlyLTY/dockerCopilot/internal/handler/container"
 	icons "github.com/onlyLTY/dockerCopilot/internal/handler/icons"
 	image "github.com/onlyLTY/dockerCopilot/internal/handler/image"
@@ -95,6 +96,43 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Method:  http.MethodGet,
 				Path:    "/containers",
 				Handler: container.ContainersListHandler(serverCtx),
+			},
+		},
+		rest.WithJwt(serverCtx.Config.Auth.AccessSecret),
+		rest.WithPrefix("/api"),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/autoUpdate",
+				Handler: autoupdate.GetSettingHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPut,
+				Path:    "/autoUpdate",
+				Handler: autoupdate.UpdateSettingHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/autoUpdate/run",
+				Handler: autoupdate.RunHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/autoUpdate/candidates",
+				Handler: autoupdate.CandidatesHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/checkUpdate",
+				Handler: autoupdate.CheckUpdateHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/checkUpdate/status",
+				Handler: autoupdate.CheckUpdateStatusHandler(serverCtx),
 			},
 		},
 		rest.WithJwt(serverCtx.Config.Auth.AccessSecret),
